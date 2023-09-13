@@ -370,7 +370,7 @@ def pyslackrandomcoffee(work_ids=None, testing=False):
             post_to_slack_channel_message(message, channel)
         else:
             post_to_slack_channel_message(message, channel=private_channel_name)
-            post_to_slack_channel_message(f"I just launched a new round of ${len(pairs)} pairs! Check your DMs.", channel)
+            post_to_slack_channel_message(f"I just launched a new round of {len(pairs)} pairs! Check your DMs.", channel)
 
 
 if __name__ == '__main__':
