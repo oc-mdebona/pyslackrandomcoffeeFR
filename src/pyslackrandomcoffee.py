@@ -6,20 +6,35 @@ import logging
 import datetime
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
+from dotenv import load_dotenv, find_dotenv
 
 # Setup - this function requires the SLACK_API_TOKEN environmental variable to run.
-client = WebClient(token=os.environ["SLACK_API_TOKEN"])
-CHANNEL         = '#randomcoffees'
-CHANNEL_TESTING = '#bot_testing'
-LOOKBACK_DAYS   = 28
-MAGICAL_TEXT    = 'This weeks random coffees are'
+_ = load_dotenv(find_dotenv())
+slack_token = os.getenv('SLACK_API_TOKEN')
+channel_name = os.getenv('CHANNEL_NAME')
+channel_name_testing = os.getenv('CHANNEL_NAME_TESTING')
+private_channel_name = os.getenv('PRIVATE_CHANNEL_NAME_FOR_MEMORY')
+pairs_are_public = os.getenv("PAIRS_ARE_PUBLIC", 'False').lower() in ('true', 't', 'yes', 'y', '1')
+testing = os.getenv("TESTING_MODE", 'False').lower() in ('true', 't', 'yes', 'y', '1')
 
+LOOKBACK_DAYS   = int(os.getenv('LOOKBACK_DAYS'))
+MAGICAL_TEXT    = os.getenv('MAGICAL_TEXT')
+
+client = WebClient(token=slack_token)
+
+def get_bot_user_id():
+    try:
+        test = client.auth_test()
+        return test["user_id"]
+    except SlackApiError as e:
+        logging.error(f"Error getting bot's user id: {e}")
+        return None
 
 def get_channel_id(channel):
     '''Convert a human readable channel name into a slack channel ID that can be used in the API.
 
     Args:
-        channel: Human readable channel name, such as #randomcoffees
+        channel: Human readable channel name, such as randomcoffees
 
     Returns:
         channel_id: Slack ID for the channel, such as CE2G4C9L2
@@ -27,33 +42,33 @@ def get_channel_id(channel):
 
     try:
         # Get the channel ID of the channel
-        channel_list = client.conversations_list(limit=1000)["channels"]
+        channel_list = client.conversations_list(limit=1000, types='public_channel,private_channel')["channels"]
         for c in channel_list:
-            if c.get('name') == channel.strip('#'):
+            if c.get('name') == channel:
                 channel_id = c['id']
 
         return channel_id
 
     except SlackApiError as e:
-        logging.debug(f"Error getting list of members in {channel}: {e}")
+        logging.error(f"Error getting channel ID of {channel}: {e}")
         return None
 
 
-def get_previous_pairs(channel, testing, lookback_days=LOOKBACK_DAYS):
+def get_previous_pairs(channel, testing, bot_user_id, lookback_days=LOOKBACK_DAYS):
     '''
     Trawl through the messages in the channel and find those that contain magical text and extract the pairs from these
     messages.
 
     Args:
-        channel (str): Human readable channel name, such as #randomcoffees
-        testing (bool): A flag to use either @user1 or <@UABCDEFG1> syntax
+        channel (str): Human readable channel name, such as randomcoffees
+        testing (bool): A flag to use either @user1 or UABCDEFG1 syntax
         lookback_days (int): How man days back should the function look for previous messages
 
     Returns:
         previous_pairs (list of of list of tuples):
             [
-                [('<@UABCDEFG1>', '<@UABCDEFG2>'), ('<@UABCDEFG5>', '<@UABCDEFG7>')],
-                [('<@UABCDEFG3>', '<@UABCDEFG4>'), ('<@UABCDEFG6>', '<@UABCDEFG8>')]
+                [('UABCDEFG1', 'UABCDEFG2'), ('UABCDEFG5', 'UABCDEFG7')],
+                [('UABCDEFG3', 'UABCDEFG4'), ('UABCDEFG6', 'UABCDEFG8')]
             ]
 
     Note:
@@ -83,28 +98,40 @@ def get_previous_pairs(channel, testing, lookback_days=LOOKBACK_DAYS):
                 next_cursor = response['response_metadata']['next_cursor']
 
     except SlackApiError as e:
-        logging.debug(f"Error getting list of members in {channel}: {e}")
+        logging.error(f"Error getting list of members in {channel}: {e}")
+
+    logging.info(f"Convo history has {len(conversation_history)} messages")
+    # Focus on the bot's own messages
+    if bot_user_id:
+        conversation_history = [ message for message in conversation_history if message["user"] == bot_user_id ]
+
+    logging.info(f"Keeping {len(conversation_history)} from the bot")
 
     # We are only interested in text that contain the MAGICAL_TEXT text and '<@U' (in prod) or '@' in testing.
     # TODO: only extract messages sent by the BOT, so we do not process messages from users using the same MAGICAL_TEXT
+    strip_len_start=0
+    strip_len_end=0
     if testing:
         texts = [t['text'] for t in conversation_history if MAGICAL_TEXT in t['text'] and '@' in t['text']]
+        strip_len_start=1
     else:
         texts = [t['text'] for t in conversation_history if MAGICAL_TEXT in t['text'] and '<@U' in t['text']]
+        strip_len_start=2
+        strip_len_end=1
 
     if len(texts):
         # Each message text is a broken into a list by the newline character and the first and last line are disregarded
         # as they are not pairs. Then each pair is cleaned and the username is extracted the result is a list of list of
         # tupples. Example:
         # [
-        #     [('<@UABCDEFG1>', '<@UABCDEFG2>'), ('<@UABCDEFG5>', '<@UABCDEFG7>')],
-        #     [('<@UABCDEFG3>', '<@UABCDEFG4>'), ('<@UABCDEFG6>', '<@UABCDEFG8>')]
+        #     [('UABCDEFG1', 'UABCDEFG2'), ('UABCDEFG5', 'UABCDEFG7')],
+        #     [('UABCDEFG3', 'UABCDEFG4'), ('UABCDEFG6', 'UABCDEFG8')]
         # ]
         previous_pairs = [
             [
                 (
-                    e.split('. ')[1].split('and')[0].strip(),
-                    e.split('. ')[1].split('and')[1].strip()
+                    e.split('. ')[1].split('and')[0].strip()[strip_len_start:-strip_len_end],
+                    e.split('. ')[1].split('and')[1].strip()[strip_len_start:-strip_len_end]
                 ) for e in t.split('\n')[1:-1]
             ] for t in texts
         ]
@@ -135,7 +162,7 @@ def post_to_slack_channel_message(message, channel):
     except SlackApiError as e:
         # From v2.x of the slack library failed responses are raised as errors. Here we catch the exception and
         # downgrade the alert
-        print(e)
+        logging.error(f"Error posting in {channel}: {e}")
         return False
     else:
         # Capture soft problems
@@ -157,11 +184,11 @@ def get_members_list(channel, testing):
     Returns:
         members: Returns a list of users.
             If testing is True:  ['@user1', '@user2', '@user3', '@user4']
-            If testing is False: ['<@UABCDEFG1>', '<@UABCDEFG2>', '<@UABCDEFG3>', '<@UABCDEFG4>']
+            If testing is False: ['UABCDEFG1', 'UABCDEFG2', 'UABCDEFG3', 'UABCDEFG4']
 
     Note:
         The formatting of the names depends if in the job is in testing mode or not. The text @user1 will not generate
-        notify the user1, but it will look like the correct link (but not blue). <@UABCDEFG1> on the other hand will
+        notify the user1, but it will look like the correct link (but not blue). UABCDEFG1 on the other hand will
         notify the link and be a blue link that looks like @user1 in slack.
     '''
 
@@ -178,7 +205,7 @@ def get_members_list(channel, testing):
         if testing:
             members = [f'@{u["name"]}' for u in users_list if u['id'] in member_ids and not u['is_bot']]
         else:
-            members = [f'<@{u["id"]}>' for u in users_list if u['id'] in member_ids and not u['is_bot']]
+            members = [f'{u["id"]}' for u in users_list if u['id'] in member_ids and not u['is_bot']]
 
         return members
 
@@ -194,15 +221,15 @@ def generate_pairs(members, previous_pairs=None):
     will be used to avoid matching members up with previous matches. This is not also possible if there are few members.
 
     Args:
-        members (list of strings): i.e. ['<@UABCDEFG1>', '<@UABCDEFG2>', '<@UABCDEFG3>', '<@UABCDEFG4>']
+        members (list of strings): i.e. ['UABCDEFG1', 'UABCDEFG2', 'UABCDEFG3', 'UABCDEFG4']
         previous_pairs (list of list of tuples):
             [
-                [('<@UABCDEFG1>', '<@UABCDEFG2>'), ('<@UABCDEFG5>', '<@UABCDEFG7>')],
-                [('<@UABCDEFG3>', '<@UABCDEFG4>'), ('<@UABCDEFG6>', '<@UABCDEFG8>')]
+                [('UABCDEFG1', 'UABCDEFG2'), ('UABCDEFG5', 'UABCDEFG7')],
+                [('UABCDEFG3', 'UABCDEFG4'), ('UABCDEFG6', 'UABCDEFG8')]
             ]
 
     Returns:
-        pairs (list of tupples): i.e. [('<@UABCDEFG1>', '<@UABCDEFG2>'), ('<@UABCDEFG3>', '<@UABCDEFG4>')]
+        pairs (list of tupples): i.e. [('UABCDEFG1', 'UABCDEFG2'), ('UABCDEFG3', 'UABCDEFG4')]
 
     Note:
         The formatting of the names depends if in the job is in testing mode or not. The text @user1 will not generate
@@ -235,12 +262,12 @@ def generate_pairs(members, previous_pairs=None):
         '''Walkthrough the members list and try to find matches that has not been done before.
 
         Args:
-            member1 (str): '<@UABCDEFG1>' or '@user1'
+            member1 (str): 'UABCDEFG1' or '@user1'
             members (list): The list of members.
             members_previous_matches (dict):
                 {
-                    '<@UABCDEFG8>': ['<@UABCDEFG1>', '<@UABCDEFG2>', '<@UABCDEFG3>'],
-                    '<@UABCDEFG7>': ['<@UABCDEFG1>', '<@UABCDEFG4>'],
+                    'UABCDEFG8': ['UABCDEFG1', 'UABCDEFG2', 'UABCDEFG3'],
+                    'UABCDEFG7': ['UABCDEFG1', 'UABCDEFG4'],
                 }
 
         Returns
@@ -285,7 +312,7 @@ def format_message_from_list_of_pairs(pairs):
     Takes the list of pairs and formats the output in a slack message that can then be posted to the slack channel.
 
     Args:
-        pairs (list of tupples): i.e. [('<@UABCDEFG1>', '<@UABCDEFG2>'), ('<@UABCDEFG3>', '<@UABCDEFG4>')]
+        pairs (list of tupples): i.e. [('UABCDEFG1', 'UABCDEFG2'), ('UABCDEFG3', 'UABCDEFG4')]
 
     Returns:
         message (multi-line str): The message
@@ -293,13 +320,26 @@ def format_message_from_list_of_pairs(pairs):
 
     if len(pairs):
         m1 = MAGICAL_TEXT + ':\n'
-        pair_strings = ''.join([f' {i+1}. {p1} and {p2}\n' for i, (p1, p2) in enumerate(pairs)])
+        pair_strings = ''.join([f' {i+1}. <@{p1}> and <@{p2}>\n' for i, (p1, p2) in enumerate(pairs)])
         m2 = f'An uneven number of members results in one person getting two coffee matches. Matches from the last {LOOKBACK_DAYS} days considered to avoid matching the same members several times in the time period.'
         message = m1 + pair_strings + m2
         return message
     else:
         return None
 
+def mpim_all_pairs(pairs):
+    '''
+    Takes the list of pairs and sends a group DM to each pair.
+
+    Args:
+        pairs (list of tupples): i.e. [('UABCDEFG1', 'UABCDEFG2'), ('UABCDEFG3', 'UABCDEFG4')]
+    '''
+    for pair in pairs:
+        try:
+            mpim=client.conversations_open(users=pair)
+            post_to_slack_channel_message(f"Hello <@{pair[0]}> and <@{pair[1]}>\nYou've been randomly selected for {channel_name}!\nTake some time to meet soon.", channel=mpim["channel"]["id"])
+        except SlackApiError as e:
+            logging.error(f"Error posting mpim message: {e}")
 
 def pyslackrandomcoffee(work_ids=None, testing=False):
     '''Pairs the members of a slack channel up randomly and post it back to the channel in a message.
@@ -313,18 +353,26 @@ def pyslackrandomcoffee(work_ids=None, testing=False):
     '''
 
     if testing is False:
-        channel = CHANNEL
+        channel = channel_name
     else:
-        channel = CHANNEL_TESTING
+        channel = channel_name_testing
 
+    bot_user_id    = get_bot_user_id()
     members        = get_members_list(channel, testing)
-    previous_pairs = get_previous_pairs(channel, testing)
+    previous_pairs = get_previous_pairs(channel if pairs_are_public else private_channel_name, testing, bot_user_id)
     pairs          = generate_pairs(members, previous_pairs)
     message        = format_message_from_list_of_pairs(pairs)
+    
+    mpim_all_pairs(pairs)
 
     if message:
-        post_to_slack_channel_message(message, channel)
+        if pairs_are_public:
+            post_to_slack_channel_message(message, channel)
+        else:
+            post_to_slack_channel_message(message, channel=private_channel_name)
+            post_to_slack_channel_message(f"I just launched a new round of ${len(pairs)} pairs! Check your DMs.", channel)
 
 
 if __name__ == '__main__':
-    pyslackrandomcoffee(testing=True)
+    logging.basicConfig(level=logging.WARNING)
+    pyslackrandomcoffee(testing)

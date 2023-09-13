@@ -1,0 +1,8 @@
+channels:history
+channels:read
+chat:write
+mpim:write
+users:read
+groups:history
+groups:write
+
