@@ -54,7 +54,7 @@ def get_channel_id(channel):
         return None
 
 
-def get_previous_pairs(channel, testing, bot_user_id, lookback_days=LOOKBACK_DAYS):
+def get_previous_pairs(channel, testing, bot_user_id, lookback_days=LOOKBACK_DAYS, members_count=1000):
     '''
     Trawl through the messages in the channel and find those that contain magical text and extract the pairs from these
     messages.
@@ -104,11 +104,12 @@ def get_previous_pairs(channel, testing, bot_user_id, lookback_days=LOOKBACK_DAY
     # Focus on the bot's own messages
     if bot_user_id:
         conversation_history = [ message for message in conversation_history if message["user"] == bot_user_id ]
+    # Don't keep more than members count - 2 messages
+    conversation_history = conversation_history[:min(len(conversation_history), members_count - 2)]
 
     logging.info(f"Keeping {len(conversation_history)} from the bot")
 
     # We are only interested in text that contain the MAGICAL_TEXT text and '<@U' (in prod) or '@' in testing.
-    # TODO: only extract messages sent by the BOT, so we do not process messages from users using the same MAGICAL_TEXT
     strip_len_start=0
     strip_len_end=0
     if testing:
@@ -359,7 +360,7 @@ def pyslackrandomcoffee(work_ids=None, testing=False):
 
     bot_user_id    = get_bot_user_id()
     members        = get_members_list(channel, testing)
-    previous_pairs = get_previous_pairs(channel if pairs_are_public else private_channel_name, testing, bot_user_id)
+    previous_pairs = get_previous_pairs(channel if pairs_are_public else private_channel_name, testing, bot_user_id, members_count=len(members))
     pairs          = generate_pairs(members, previous_pairs)
     message        = format_message_from_list_of_pairs(pairs)
     
@@ -374,5 +375,5 @@ def pyslackrandomcoffee(work_ids=None, testing=False):
 
 
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.WARNING)
+    logging.basicConfig(level=logging.INFO)
     pyslackrandomcoffee(testing)
