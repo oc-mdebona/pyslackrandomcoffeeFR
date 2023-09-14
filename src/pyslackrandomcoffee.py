@@ -98,7 +98,7 @@ def get_previous_pairs(channel, testing, bot_user_id, lookback_days=LOOKBACK_DAY
                 next_cursor = response['response_metadata']['next_cursor']
 
     except SlackApiError as e:
-        logging.error(f"Error getting list of members in {channel}: {e}")
+        logging.error(f"Error getting conversation history for {channel}: {e}")
 
     logging.info(f"Convo history has {len(conversation_history)} messages")
     # Focus on the bot's own messages
