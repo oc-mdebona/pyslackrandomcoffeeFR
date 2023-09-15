@@ -42,10 +42,25 @@ def get_channel_id(channel):
 
     try:
         # Get the channel ID of the channel
-        channel_list = client.conversations_list(limit=1000, types='public_channel,private_channel')["channels"]
-        for c in channel_list:
-            if c.get('name') == channel:
-                channel_id = c['id']
+        # The results paginated, so loop until we get the them all. https://api.slack.com/methods/conversations.history
+        conversation_history = []
+        has_more = True
+        next_cursor = None
+        channel_id = None
+        while has_more:
+            response = client.conversations_list(limit=200, cursor=next_cursor, types='public_channel,private_channel')
+            channel_list = response["channels"]
+            for c in channel_list:
+                if c.get('name') == channel:
+                    channel_id = c['id']
+                    break
+            if channel_id:
+                break
+            else:
+                has_more = response['response_metadata'] is not None and response['response_metadata']['next_cursor'] is not None
+                if has_more:
+                    next_cursor = response['response_metadata']['next_cursor']
+
 
         return channel_id
 
@@ -196,6 +211,7 @@ def get_members_list(channel, testing):
     try:
         # Get the member ids from the channel
         channel_id = get_channel_id(channel)
+        #TODO Handle pagination to break through 1000 users hard limit
         member_ids = client.conversations_members(channel=channel_id)['members']
 
         # Get the mapping between member ids and names
