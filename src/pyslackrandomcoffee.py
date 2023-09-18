@@ -69,13 +69,13 @@ def get_channel_id(channel):
         return None
 
 
-def get_previous_pairs(channel, testing, bot_user_id, lookback_days=LOOKBACK_DAYS, members_count=1000):
+def get_previous_pairs(channel_id, testing, bot_user_id, lookback_days=LOOKBACK_DAYS, members_count=1000):
     '''
     Trawl through the messages in the channel and find those that contain magical text and extract the pairs from these
     messages.
 
     Args:
-        channel (str): Human readable channel name, such as randomcoffees
+        channel (str): ID of the channel where previous pairs were posted, i.e. C01234567
         testing (bool): A flag to use either @user1 or UABCDEFG1 syntax
         lookback_days (int): How man days back should the function look for previous messages
 
@@ -95,7 +95,7 @@ def get_previous_pairs(channel, testing, bot_user_id, lookback_days=LOOKBACK_DAY
     try:
         # Setup params for client.conversations_history(). slack accepts time in seconds since epoch
         params = {
-            'channel': get_channel_id(channel),  # Get channel id
+            'channel': channel_id, 
             'limit': 200,  # Pagination - 200 messages per API call
             'oldest': (datetime.datetime.today() - datetime.timedelta(days=lookback_days)).timestamp(),
             'newest': datetime.datetime.now().timestamp()
@@ -157,12 +157,12 @@ def get_previous_pairs(channel, testing, bot_user_id, lookback_days=LOOKBACK_DAY
     return previous_pairs
 
 
-def post_to_slack_channel_message(message, channel):
+def post_to_slack_channel_message(message, channel_id):
     '''Send a message to a given slack channel.
 
     Args:
         message (str): Message to send
-        channel (str): Name of the receiving channel (ex. #data-science-alert) or the unique user id for sending private
+        channel_id (str): ID of the receiving channel (ex. C01234567) or the unique user id for sending private
             messages
 
     Returns:
@@ -172,9 +172,9 @@ def post_to_slack_channel_message(message, channel):
     try:
         if isinstance(message, list):
             # The user would like to send a block
-            response = client.chat_postMessage(channel=channel, blocks=message)
+            response = client.chat_postMessage(channel=channel_id, blocks=message)
         else:
-            response = client.chat_postMessage(channel=channel, text=message)
+            response = client.chat_postMessage(channel=channel_id, text=message)
     except SlackApiError as e:
         # From v2.x of the slack library failed responses are raised as errors. Here we catch the exception and
         # downgrade the alert
@@ -189,11 +189,11 @@ def post_to_slack_channel_message(message, channel):
             return True
 
 
-def get_members_list(channel, testing):
+def get_members_list(channel_id, testing):
     '''Get the list of members of a channel.
 
     Args:
-        channel (str): Name of the channel with #. i.e. "#randomcoffees".
+        channel (str): ID of the channel i.e. "C01234567".
         testing (bool): If True inactive usernames are written that does not notify the users, but if False active
             username links are used and the users are pinged when the message is posted
 
@@ -209,8 +209,6 @@ def get_members_list(channel, testing):
     '''
 
     try:
-        # Get the member ids from the channel
-        channel_id = get_channel_id(channel)
         #TODO Handle pagination to break through 1000 users hard limit
         member_ids = client.conversations_members(channel=channel_id)['members']
 
@@ -227,7 +225,7 @@ def get_members_list(channel, testing):
         return members
 
     except SlackApiError as e:
-        logging.error(f"Error getting list of members in {channel}: {e}")
+        logging.error(f"Error getting list of members in {channel_id}: {e}")
         return None
 
 
@@ -344,17 +342,18 @@ def format_message_from_list_of_pairs(pairs):
     else:
         return None
 
-def mpim_all_pairs(pairs):
+def mpim_all_pairs(pairs, channel_id):
     '''
     Takes the list of pairs and sends a group DM to each pair.
 
     Args:
         pairs (list of tupples): i.e. [('UABCDEFG1', 'UABCDEFG2'), ('UABCDEFG3', 'UABCDEFG4')]
+        channel_id (str): ID of the channel were pairs will be posted for later reference, i.e. C01234567
     '''
     for pair in pairs:
         try:
             mpim=client.conversations_open(users=pair)
-            post_to_slack_channel_message(f"Hello <@{pair[0]}> and <@{pair[1]}>\nYou've been randomly selected for {channel_name}!\nTake some time to meet soon.", channel=mpim["channel"]["id"])
+            post_to_slack_channel_message(f"Hello <@{pair[0]}> and <@{pair[1]}>\nYou've been randomly selected for <#{channel_id}>!\nTake some time to meet soon.", channel_id=mpim["channel"]["id"])
         except SlackApiError as e:
             logging.error(f"Error posting mpim message: {e}")
 
@@ -374,19 +373,23 @@ def pyslackrandomcoffee(work_ids=None, testing=False):
     else:
         channel = channel_name_testing
 
+    channel_id = get_channel_id(channel)
+
+    if pairs_are_public:
+        memory_channel_id = channel_id
+    else:
+        memory_channel_id = get_channel_id(private_channel_name)
+
     bot_user_id    = get_bot_user_id()
-    members        = get_members_list(channel, testing)
-    previous_pairs = get_previous_pairs(channel if pairs_are_public else private_channel_name, testing, bot_user_id, members_count=len(members))
+    members        = get_members_list(channel_id, testing)
+    previous_pairs = get_previous_pairs(memory_channel_id, testing, bot_user_id, members_count=len(members))
     pairs          = generate_pairs(members, previous_pairs)
     message        = format_message_from_list_of_pairs(pairs)
     
-    mpim_all_pairs(pairs)
-
+    mpim_all_pairs(pairs,channel_id)
     if message:
-        if pairs_are_public:
-            post_to_slack_channel_message(message, channel)
-        else:
-            post_to_slack_channel_message(message, channel=private_channel_name)
+        post_to_slack_channel_message(message, memory_channel_id)
+        if not pairs_are_public:
             post_to_slack_channel_message(f"I just launched a new round of {len(pairs)} pairs! Check your DMs.", channel)
 
 
