@@ -7,3 +7,4 @@ dependencies:
   - pip
   - pip:
       - slack_sdk==3.4.2 # Send messages to slack channels and users
+      - python-dotenv==1.0.0

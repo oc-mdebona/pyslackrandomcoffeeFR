@@ -373,6 +373,7 @@ def pyslackrandomcoffee(work_ids=None, testing=False):
     else:
         channel = channel_name_testing
 
+    logging.info(f"Using channel {channel}")
     channel_id = get_channel_id(channel)
 
     if pairs_are_public:
