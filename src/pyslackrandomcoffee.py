@@ -51,7 +51,7 @@ def get_channels_id(channels):
         next_cursor = None
         channel_id = None
         while has_more:
-            response = client.conversations_list(limit=500, cursor=next_cursor, types='public_channel,private_channel')
+            response = client.conversations_list(cursor=next_cursor, types='public_channel,private_channel')
             channel_list = response["channels"]
             logging.info(f"Retrieved {len(channel_list)} chans")
             for c in channel_list:
