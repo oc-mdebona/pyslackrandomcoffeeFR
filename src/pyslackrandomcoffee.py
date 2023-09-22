@@ -431,5 +431,5 @@ def pyslackrandomcoffee(work_ids=None, testing=False):
 
 
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(level=logging.INFO)
     pyslackrandomcoffee(testing)
