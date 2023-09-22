@@ -224,15 +224,25 @@ def get_members_list(channel_id, testing):
         #TODO Handle pagination to break through 1000 users hard limit
         member_ids = client.conversations_members(channel=channel_id)['members']
 
-        # Get the mapping between member ids and names
-        users_list = client.users_list()['members']
+        members = []
 
+        for member_id in member_ids:
+            user = client.users_info(user=member_id)['user']
+            if not user['is_bot']:
+                if testing:
+                    members.append(f'@{user["name"]}')
+                else:
+                    members.append(f'{user["id"]}')
+
+        # Get the mapping between member ids and names
+        # users_list = client.users_list()['members']
+        # 
         # Return a list of members as should be written in slack. The @name syntax is not active and will not
         # contact the users in the slack channel, so perfect for testing.
-        if testing:
-            members = [f'@{u["name"]}' for u in users_list if u['id'] in member_ids and not u['is_bot']]
-        else:
-            members = [f'{u["id"]}' for u in users_list if u['id'] in member_ids and not u['is_bot']]
+        #if testing:
+        #    members = [f'@{u["name"]}' for u in users_list if u['id'] in member_ids and not u['is_bot']]
+        #else:
+        #    members = [f'{u["id"]}' for u in users_list if u['id'] in member_ids and not u['is_bot']]
 
         logging.info(f"Found {len(members)} members")
 
@@ -421,5 +431,5 @@ def pyslackrandomcoffee(work_ids=None, testing=False):
 
 
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.DEBUG)
     pyslackrandomcoffee(testing)
