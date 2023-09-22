@@ -53,16 +53,17 @@ def get_channels_id(channels):
         while has_more:
             response = client.conversations_list(limit=500, cursor=next_cursor, types='public_channel,private_channel')
             channel_list = response["channels"]
+            logging.info(f"Retrieved {len(channel_list)} chans")
             for c in channel_list:
                 if c.get('name') in chan_name_to_id.keys():
                     chan_name_to_id[c.get('name')] = c['id']
-                    break
             if not None in chan_name_to_id.values():
                 break
             else:
                 has_more = response['response_metadata'] is not None and response['response_metadata']['next_cursor'] is not None
                 if has_more:
                     next_cursor = response['response_metadata']['next_cursor']
+                    logging.info('Waiting before next page of channels list')
                     time.sleep(1) # Prevent API rate-limiting
 
 
@@ -115,6 +116,7 @@ def get_previous_pairs(channel_id, testing, bot_user_id, lookback_days=LOOKBACK_
             has_more = response['has_more']
             if has_more:
                 next_cursor = response['response_metadata']['next_cursor']
+                logging.info('Waiting before next page of convo history')
                 time.sleep(1) # Prevent API rate-limiting
 
     except SlackApiError as e:
@@ -359,6 +361,7 @@ def mpim_all_pairs(pairs, channel_id):
         try:
             mpim=client.conversations_open(users=pair)
             post_to_slack_channel_message(f"Hello <@{pair[0]}> and <@{pair[1]}>\nYou've been randomly selected for <#{channel_id}>!\nTake some time to meet soon.", channel_id=mpim["channel"]["id"])
+            logging.info('Waiting before sending next mpim')
             time.sleep(1) # Prevent API rate-limiting
         except SlackApiError as e:
             logging.error(f"Error posting mpim message: {e}")
@@ -387,9 +390,11 @@ def pyslackrandomcoffee(work_ids=None, testing=False):
         memory_channel = channel
     else:
         memory_channel = private_channel_name
-        channel_name.append(private_channel_name)
+        channel_names.append(private_channel_name)
 
     channel_names_to_id = get_channels_id(channel_names)
+
+    logging.info(f"Channels ID retrieved: {channel_names_to_id}")
 
     channel_id  = channel_names_to_id[channel]
     memory_channel_id  = channel_names_to_id[memory_channel]
