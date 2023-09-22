@@ -31,15 +31,17 @@ def get_bot_user_id():
         logging.error(f"Error getting bot's user id: {e}")
         return None
 
-def get_channel_id(channel):
+def get_channels_id(channels):
     '''Convert a human readable channel name into a slack channel ID that can be used in the API.
 
     Args:
-        channel: Human readable channel name, such as randomcoffees
+        channels: Array of human readable channel names, such as ['randomcoffees','randomcoffeesbotmemory']
 
     Returns:
-        channel_id: Slack ID for the channel, such as CE2G4C9L2
+        channels_id: A dict with channel names as key, and Slack ID for the channel, such as CE2G4C9L2, as values
     '''
+
+    chan_name_to_id = { chan : None for chan in channels }
 
     try:
         # Get the channel ID of the channel
@@ -52,10 +54,10 @@ def get_channel_id(channel):
             response = client.conversations_list(limit=500, cursor=next_cursor, types='public_channel,private_channel')
             channel_list = response["channels"]
             for c in channel_list:
-                if c.get('name') == channel:
-                    channel_id = c['id']
+                if c.get('name') in chan_name_to_id.keys():
+                    chan_name_to_id[c.get('name')] = c['id']
                     break
-            if channel_id:
+            if not None in chan_name_to_id.values():
                 break
             else:
                 has_more = response['response_metadata'] is not None and response['response_metadata']['next_cursor'] is not None
@@ -64,7 +66,7 @@ def get_channel_id(channel):
                     time.sleep(1) # Prevent API rate-limiting
 
 
-        return channel_id
+        return chan_name_to_id
 
     except SlackApiError as e:
         logging.error(f"Error getting channel ID of {channel}: {e}")
@@ -377,14 +379,20 @@ def pyslackrandomcoffee(work_ids=None, testing=False):
     else:
         channel = channel_name_testing
 
+    channel_names = [ channel ]
+    
     logging.info(f"Using channel {channel}")
-    channel_id = get_channel_id(channel)
 
     if pairs_are_public:
-        memory_channel_id = channel_id
+        memory_channel = channel
     else:
-        memory_channel_id = get_channel_id(private_channel_name)
+        memory_channel = private_channel_name
+        channel_name.append(private_channel_name)
 
+    channel_names_to_id = get_channels_id(channel_names)
+
+    channel_id  = channel_names_to_id[channel]
+    memory_channel_id  = channel_names_to_id[memory_channel]
     bot_user_id    = get_bot_user_id()
     members        = get_members_list(channel_id, testing)
     previous_pairs = get_previous_pairs(memory_channel_id, testing, bot_user_id, members_count=len(members))
