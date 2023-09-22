@@ -63,8 +63,9 @@ def get_channels_id(channels):
                 has_more = response['response_metadata'] is not None and response['response_metadata']['next_cursor'] is not None
                 if has_more:
                     next_cursor = response['response_metadata']['next_cursor']
-                    logging.info('Waiting before next page of channels list')
-                    time.sleep(4) # Prevent API rate-limiting
+                    logging.info('Waiting before next page of channels list.')
+                    logging.info(f"Currently retrieved: {chan_name_to_id}")
+                    time.sleep(10) # Prevent API rate-limiting
 
 
         return chan_name_to_id
