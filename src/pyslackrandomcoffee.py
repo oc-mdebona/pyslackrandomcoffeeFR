@@ -70,7 +70,7 @@ def get_channels_id(channels):
         return chan_name_to_id
 
     except SlackApiError as e:
-        logging.error(f"Error getting channel ID of {channel}: {e}")
+        logging.error(f"Error getting channels ID: {channels}: {e}")
         return None
 
 
