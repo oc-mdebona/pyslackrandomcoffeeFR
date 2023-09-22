@@ -51,7 +51,7 @@ def get_channels_id(channels):
         next_cursor = None
         channel_id = None
         while has_more:
-            response = client.conversations_list(cursor=next_cursor, types='public_channel,private_channel')
+            response = client.conversations_list(limit=200, cursor=next_cursor, types='public_channel,private_channel')
             channel_list = response["channels"]
             logging.info(f"Retrieved {len(channel_list)} chans")
             for c in channel_list:
@@ -64,7 +64,7 @@ def get_channels_id(channels):
                 if has_more:
                     next_cursor = response['response_metadata']['next_cursor']
                     logging.info('Waiting before next page of channels list')
-                    time.sleep(1) # Prevent API rate-limiting
+                    time.sleep(4) # Prevent API rate-limiting
 
 
         return chan_name_to_id
