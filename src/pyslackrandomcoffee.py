@@ -234,6 +234,8 @@ def get_members_list(channel_id, testing):
         else:
             members = [f'{u["id"]}' for u in users_list if u['id'] in member_ids and not u['is_bot']]
 
+        logging.info(f"Found {len(members)} members")
+
         return members
 
     except SlackApiError as e:
@@ -330,6 +332,8 @@ def generate_pairs(members, previous_pairs=None):
                 pair, members = pair_excluding_historic_matches(first_member, members, members_previous_matches)
 
             pairs.append(pair)
+
+    logging.info(f"Generated {len(pairs)} pairs")
 
     return pairs
 
