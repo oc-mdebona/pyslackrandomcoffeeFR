@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import os
+import time
 import random
 import logging
 import datetime
@@ -48,7 +49,7 @@ def get_channel_id(channel):
         next_cursor = None
         channel_id = None
         while has_more:
-            response = client.conversations_list(limit=200, cursor=next_cursor, types='public_channel,private_channel')
+            response = client.conversations_list(limit=500, cursor=next_cursor, types='public_channel,private_channel')
             channel_list = response["channels"]
             for c in channel_list:
                 if c.get('name') == channel:
@@ -60,6 +61,7 @@ def get_channel_id(channel):
                 has_more = response['response_metadata'] is not None and response['response_metadata']['next_cursor'] is not None
                 if has_more:
                     next_cursor = response['response_metadata']['next_cursor']
+                    time.sleep(1) # Prevent API rate-limiting
 
 
         return channel_id
@@ -111,6 +113,7 @@ def get_previous_pairs(channel_id, testing, bot_user_id, lookback_days=LOOKBACK_
             has_more = response['has_more']
             if has_more:
                 next_cursor = response['response_metadata']['next_cursor']
+                time.sleep(1) # Prevent API rate-limiting
 
     except SlackApiError as e:
         logging.error(f"Error getting conversation history for {channel}: {e}")
@@ -354,6 +357,7 @@ def mpim_all_pairs(pairs, channel_id):
         try:
             mpim=client.conversations_open(users=pair)
             post_to_slack_channel_message(f"Hello <@{pair[0]}> and <@{pair[1]}>\nYou've been randomly selected for <#{channel_id}>!\nTake some time to meet soon.", channel_id=mpim["channel"]["id"])
+            time.sleep(1) # Prevent API rate-limiting
         except SlackApiError as e:
             logging.error(f"Error posting mpim message: {e}")
 
