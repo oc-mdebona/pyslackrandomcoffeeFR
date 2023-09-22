@@ -17,6 +17,7 @@ channel_name_testing = os.getenv('CHANNEL_NAME_TESTING')
 private_channel_name = os.getenv('PRIVATE_CHANNEL_NAME_FOR_MEMORY')
 pairs_are_public = os.getenv("PAIRS_ARE_PUBLIC", 'False').lower() in ('true', 't', 'yes', 'y', '1')
 testing = os.getenv("TESTING_MODE", 'False').lower() in ('true', 't', 'yes', 'y', '1')
+chan_names_are_ids = os.getenv("CHAN_NAMES_ARE_IDS", 'False').lower() in ('true', 't', 'yes', 'y', '1')
 
 LOOKBACK_DAYS   = int(os.getenv('LOOKBACK_DAYS'))
 MAGICAL_TEXT    = os.getenv('MAGICAL_TEXT')
@@ -40,6 +41,9 @@ def get_channels_id(channels):
     Returns:
         channels_id: A dict with channel names as key, and Slack ID for the channel, such as CE2G4C9L2, as values
     '''
+
+    if chan_names_are_ids:
+        return { chan : chan for chan in channels }
 
     chan_name_to_id = { chan : None for chan in channels }
 
