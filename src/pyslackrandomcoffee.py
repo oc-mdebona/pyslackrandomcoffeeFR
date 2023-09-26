@@ -64,7 +64,7 @@ def get_channels_id(channels):
             if not None in chan_name_to_id.values():
                 break
             else:
-                has_more = response['response_metadata'] is not None and response['response_metadata']['next_cursor'] is not None
+                has_more = response['response_metadata'] is not None and response['response_metadata']['next_cursor']
                 if has_more:
                     next_cursor = response['response_metadata']['next_cursor']
                     logging.info('Waiting before next page of channels list.')
@@ -221,8 +221,19 @@ def get_members_list(channel_id, testing):
     '''
 
     try:
-        #TODO Handle pagination to break through 1000 users hard limit
-        member_ids = client.conversations_members(channel=channel_id)['members']
+        # Handle pagination to break through 1000 users hard limit
+        member_ids=[]
+        has_more = True
+        next_cursor = None
+        while has_more:
+            response = client.conversations_members(limit=200, channel=channel_id, cursor=next_cursor)
+            member_ids.extend(response['members'])
+            has_more = response['response_metadata'] is not None and response['response_metadata']['next_cursor']
+            if has_more:
+                next_cursor = response['response_metadata']['next_cursor']
+                logging.info('Waiting before next page of channels members list.')
+                logging.info(f"Currently retrieved: {len(member_ids)}")
+                time.sleep(5) # Prevent API rate-limiting
 
         members = []
         for member_id in member_ids:
