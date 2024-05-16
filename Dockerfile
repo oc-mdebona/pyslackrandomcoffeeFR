@@ -7,7 +7,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 ARG TESTING_MODE=False
 ARG PAIRS_ARE_PUBLIC=False
 ARG LOOKBACK_DAYS=28
-ARG MAGICAL_TEXT="This weeks random coffees are"
+ARG MAGICAL_TEXT="Les rencontres de cette semaine sont"
 ARG CHAN_NAMES_ARE_IDS=False
 
 ENV TESTING_MODE=${TESTING_MODE}
