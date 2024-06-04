@@ -363,7 +363,7 @@ def format_message_from_list_of_pairs(pairs):
         m1 = MAGICAL_TEXT + ':\n'
         pair_strings = ''.join([f' {i+1}. <@{p1}> et <@{p2}>\n' for i, (p1, p2) in enumerate(pairs)])
         #m2 = f'An uneven number of members results in one person getting two coffee matches. Matches from the last {LOOKBACK_DAYS} days considered to avoid matching the same members several times in the time period.'
-        m2 = f'Une personne se retrouve avec deux paires à cause d\'un nombre impaire de membres. Les paires des {LOOKBACK_DAYS} derniers jours sont prises en compte pour ne pas appairer les mêmes membres plusieurs fois durant cette période.'
+        m2 = f'Une personne se retrouve avec deux paires à cause d\'un nombre impair de membres. Les paires des {LOOKBACK_DAYS} derniers jours sont prises en compte pour ne pas appairer les mêmes membres plusieurs fois durant cette période.'
         message = m1 + pair_strings + m2
         return message
     else:
@@ -381,7 +381,7 @@ def mpim_all_pairs(pairs, channel_id):
         try:
             mpim=client.conversations_open(users=pair)
             #post_to_slack_channel_message(f"Hello <@{pair[0]}> and <@{pair[1]}>\nYou've been randomly selected for <#{channel_id}>!\nTake some time to meet soon.", channel_id=mpim["channel"]["id"])
-            post_to_slack_channel_message(f"Bonjour <@{pair[0]}> et <@{pair[1]}>\nVous avez été sélectionnés aléatoirement pour <#{channel_id}>!\nPrenez un peu de temps pour vous rencontrer prochainement.", channel_id=mpim["channel"]["id"])
+            post_to_slack_channel_message(f"Bonjour <@{pair[0]}> et <@{pair[1]}>\nVous avez été sélectionnés aléatoirement pour une <#{channel_id}>!\nPrenez un peu de temps pour vous rencontrer prochainement. Ce sera l'occasion de sortir de votre quotidien et d'échanger de manière informelle et confidentielle avec d'autres personnes en formation !", channel_id=mpim["channel"]["id"])
             logging.info('Waiting before sending next mpim')
             time.sleep(1) # Prevent API rate-limiting
         except SlackApiError as e:
@@ -430,7 +430,7 @@ def pyslackrandomcoffee(work_ids=None, testing=False):
         post_to_slack_channel_message(message, memory_channel_id)
         if not pairs_are_public:
             #post_to_slack_channel_message(f"I just launched a new round of {len(pairs)} pairs! Check your DMs.", channel)
-            post_to_slack_channel_message(f"Je viens de lancer une nouvelle tournée de {len(pairs)} paires! Vérifiez vos MPs.", channel)
+            post_to_slack_channel_message(f"Je viens de lancer une nouvelle tournée de {len(pairs)} paires! Vérifiez vos messages privés.", channel)
 
 
 if __name__ == '__main__':
